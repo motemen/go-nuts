@@ -41,9 +41,20 @@ func TestBroadcastWriter(t *testing.T) {
 
 	bw.Close()
 
-	t.Logf("%q", <-c1)
-	t.Logf("%q", <-c2)
-	t.Logf("%q", <-c3)
+	l4 := bw.NewListener()
+	c4 := consumeListenerC(l4)
+
+	check := func(name string, c <-chan string) {
+		s := <-c
+		expected := "foo\nbar\n"
+		if s != expected {
+			t.Errorf("%s: got %q but expected %q", name, s, expected)
+		}
+	}
+	check("c1", c1)
+	check("c2", c2)
+	check("c3", c3)
+	check("c4", c4)
 
 	wg.Wait()
 }

@@ -7,11 +7,15 @@ import (
 const chanBufSize = 256
 
 type BroadcastWriter struct {
-	backlog      *bytes.Buffer
+	backlog *bytes.Buffer
+
 	listeners    []chan<- []byte
 	addListenerC chan chan<- []byte
-	writeC       chan []byte
-	closeC       chan struct{}
+
+	writeC chan []byte
+
+	closeC chan struct{}
+	closed bool
 }
 
 func NewBroadcastWriter() *BroadcastWriter {
@@ -33,6 +37,9 @@ func (bw *BroadcastWriter) loop() {
 			if bw.backlog.Len() > 0 {
 				l <- bw.backlog.Bytes()
 			}
+			if bw.closed {
+				close(l)
+			}
 			bw.listeners = append(bw.listeners, l)
 
 		case buf := <-bw.writeC:
@@ -45,7 +52,7 @@ func (bw *BroadcastWriter) loop() {
 			for _, l := range bw.listeners {
 				close(l)
 			}
-			return
+			bw.closed = true
 		}
 	}
 }
