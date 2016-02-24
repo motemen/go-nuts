@@ -67,6 +67,12 @@ func TestMain(m *testing.M) {
 		os.Exit(2)
 	}
 
+	version := string(b[:len(b)-1])
+	if !strings.HasPrefix(version, "git version 2.") {
+		fmt.Fprintf(os.Stderr, "git version ~2 required: got [%s]\n", version)
+		os.Exit(0)
+	}
+
 	fmt.Fprintf(os.Stderr, "# %s\n", b[:len(b)-1])
 	os.Exit(m.Run())
 }
