@@ -27,6 +27,13 @@ func checkParseGitURL(t *testing.T, url string) {
 
 	if proto == "ssh" {
 		got["userandhost"] = host
+
+		// for older version of git
+		if port != 0 {
+			got["hostandport"] = fmt.Sprintf("%s:%d", host, port)
+		} else {
+			got["hostandport"] = host
+		}
 	} else {
 		got["hostandport"] = host
 	}
