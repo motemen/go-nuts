@@ -6,50 +6,53 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"regexp"
+	"strings"
 )
 
 func checkParseGitURL(t *testing.T, url string) {
 	t.Logf("URL: %s", url)
 
+	got := map[string]string{}
 	proto, host, port, path, err := ParseGitURL(url)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	hostkey := "hostandport"
+	got["url"] = url
+	got["protocol"] = proto
+	got["path"] = path
+
 	if proto == "ssh" {
-		hostkey = "userandhost"
+		got["userandhost"] = host
+	} else {
+		got["hostandport"] = host
 	}
 
-	portString := "NONE"
 	if port != 0 {
-		portString = fmt.Sprint(port)
+		got["port"] = fmt.Sprint(port)
+	} else {
+		got["port"] = "NONE"
 	}
 
-	got := fmt.Sprintf(`Diag: url=%s
-Diag: protocol=%s
-Diag: %s=%s
-Diag: port=%s
-Diag: path=%s
-`, url, proto, hostkey, host, portString, path)
-
-	if proto != "ssh" {
-		got = regexp.MustCompile("(?m)^Diag: port=.*\n").ReplaceAllString(got, "")
-	}
-
-	expected, err := exec.Command("git", "fetch-pack", "--diag-url", url).Output()
+	b, err := exec.Command("git", "fetch-pack", "--diag-url", url).Output()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if got != string(expected) {
-		t.Errorf(`URL %q failed:
-# Got
-%s
-# Expected
-%s
-`, url, got, expected)
+	expected := map[string]string{}
+	lines := strings.Split(string(b), "\n")
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "Diag: ") {
+			continue
+		}
+		kv := strings.SplitN(line[len("Diag: "):], "=", 2)
+		expected[kv[0]] = kv[1]
+	}
+
+	for k, v := range expected {
+		if got[k] != v {
+			t.Errorf("%s expected %q but got %q", k, v, got[k])
+		}
 	}
 }
 
