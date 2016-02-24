@@ -14,39 +14,7 @@ var (
 	rxHostAndPort = regexp.MustCompile(`^([^:]+|\[.+?\]):([0-9]+)$`)
 )
 
-type Protocol int
-
-const (
-	ProtocolLocal Protocol = iota
-	ProtocolFile
-	ProtocolSSH
-	ProtocolGit
-)
-
-func (p Protocol) String() string {
-	switch p {
-	case ProtocolLocal:
-		return "file"
-	case ProtocolFile:
-		return "file"
-	case ProtocolSSH:
-		return "ssh"
-	case ProtocolGit:
-		return "git"
-	default:
-		panic("unreachable")
-	}
-}
-
-var schemeToProtocol = map[string]Protocol{
-	"ssh":     ProtocolSSH,
-	"git":     ProtocolGit,
-	"git+ssh": ProtocolSSH,
-	"ssh+git": ProtocolSSH,
-	"file":    ProtocolFile,
-}
-
-func ParseGitURL(giturl string) (proto Protocol, host string, port uint, path string, err error) {
+func ParseGitURL(giturl string) (proto string, host string, port uint, path string, err error) {
 	// ref: parse_connect_url() in connect.c
 
 	if rxURLLike.MatchString(giturl) {
@@ -56,9 +24,12 @@ func ParseGitURL(giturl string) (proto Protocol, host string, port uint, path st
 			return
 		}
 
-		proto = schemeToProtocol[u.Scheme]
+		proto = u.Scheme
+		if proto == "git+ssh" || proto == "ssh+git" {
+			proto = "ssh"
+		}
 		host = u.Host
-		if proto == ProtocolSSH {
+		if proto == "ssh" {
 			if m := rxHostAndPort.FindStringSubmatch(host); m != nil {
 				var port64 uint64
 				host = m[1]
@@ -69,22 +40,23 @@ func ParseGitURL(giturl string) (proto Protocol, host string, port uint, path st
 				port = uint(port64)
 			}
 		}
-		if proto == ProtocolSSH && host[0] == '[' && host[len(host)-1] == ']' {
+		if proto == "ssh" && host[0] == '[' && host[len(host)-1] == ']' {
 			host = host[1 : len(host)-1]
 		}
 		if u.User != nil {
 			host = u.User.String() + "@" + host
 		}
 		path = u.Path
-		if proto == ProtocolGit || proto == ProtocolSSH {
+		if proto == "git" || proto == "ssh" {
 			if path[1] == '~' {
 				path = path[1:]
 			}
-		} else if proto == ProtocolFile {
+		} else if proto == "file" {
 			host = ""
 			path = u.Host + u.Path
 		} else {
-			panic("unreachable")
+			host = u.Host
+			path = u.Path
 		}
 	} else {
 		colon := strings.IndexByte(giturl, ':')
@@ -96,7 +68,7 @@ func ParseGitURL(giturl string) (proto Protocol, host string, port uint, path st
 			// - host.xyz:path/to/repo.git/
 			// - user@[::1]:path/to/repo.git/
 			// - [::1]:path/to/repo.git/
-			proto = ProtocolSSH
+			proto = "ssh"
 			m := regexp.MustCompile(`^(.+?@)?\[(.+?)\]:(.*)`).FindStringSubmatch(giturl)
 			if m != nil {
 				host = m[1] + m[2]
@@ -109,6 +81,7 @@ func ParseGitURL(giturl string) (proto Protocol, host string, port uint, path st
 				path = path[1:]
 			}
 		} else {
+			proto = "file"
 			path = giturl
 		}
 	}

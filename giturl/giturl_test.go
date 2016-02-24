@@ -17,7 +17,7 @@ func checkParseGitURL(t *testing.T, url string) {
 	}
 
 	hostkey := "hostandport"
-	if proto.String() == "ssh" {
+	if proto == "ssh" {
 		hostkey = "userandhost"
 	}
 
@@ -33,7 +33,7 @@ Diag: port=%s
 Diag: path=%s
 `, url, proto, hostkey, host, portString, path)
 
-	if proto.String() != "ssh" {
+	if proto != "ssh" {
 		got = regexp.MustCompile("(?m)^Diag: port=.*\n").ReplaceAllString(got, "")
 	}
 
@@ -91,7 +91,14 @@ func TestParseGitURL_ExtraSCPLike(t *testing.T) {
 func TestParseGitURL_HTTP(t *testing.T) {
 	for _, repo := range []string{"repo", "re:po", "re/po"} {
 		for _, host := range []string{"host", "host:80"} {
-			checkParseGitURL(t, fmt.Sprintf("http://%s/%s", host, repo))
+			for _, proto := range []string{"http", "https"} {
+				p, _, _, _, err := ParseGitURL(fmt.Sprintf("%s://%s/%s", proto, host, repo))
+				if err != nil {
+					t.Error(err)
+				} else if p != proto {
+					t.Errorf("expected protocol %q but got %q", proto, p)
+				}
+			}
 		}
 	}
 }
