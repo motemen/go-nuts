@@ -1,9 +1,10 @@
 package giturl
 
-import (
-	"testing"
+import "testing"
 
+import (
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 )
@@ -50,6 +51,18 @@ Diag: path=%s
 %s
 `, url, got, expected)
 	}
+}
+
+func TestMain(m *testing.M) {
+	cmd := exec.Command("git", "version")
+	b, err := cmd.Output()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+
+	fmt.Fprintf(os.Stderr, "# %s\n", b[:len(b)-1])
+	os.Exit(m.Run())
 }
 
 // source: t/t5500-fetch-pack.sh
