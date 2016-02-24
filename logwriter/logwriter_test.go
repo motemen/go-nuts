@@ -8,6 +8,12 @@ import (
 	"log"
 )
 
+func mustEqual(t *testing.T, got, expected string) {
+	if got != expected {
+		t.Errorf("got %q but expected %q", got, expected)
+	}
+}
+
 func TestLogWriter(t *testing.T) {
 	var buf bytes.Buffer
 	w := &LogWriter{
@@ -18,9 +24,9 @@ func TestLogWriter(t *testing.T) {
 	fmt.Fprintln(w, "foo")
 	fmt.Fprint(w, "bar-")
 
-	t.Log(buf.String())
+	mustEqual(t, buf.String(), "logwriter_test.go:24: [test] foo\n")
 
 	fmt.Fprintln(w, "baz")
 
-	t.Log(buf.String())
+	mustEqual(t, buf.String(), "logwriter_test.go:24: [test] foo\nlogwriter_test.go:29: [test] bar-baz\n")
 }
