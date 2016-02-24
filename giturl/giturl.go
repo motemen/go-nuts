@@ -12,9 +12,10 @@ import (
 var (
 	rxURLLike     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9+.-]*://`)
 	rxHostAndPort = regexp.MustCompile(`^([^:]+|\[.+?\]):([0-9]+)$`)
+	rxSCPLikeV6   = regexp.MustCompile(`^(.+?@)?\[(.+?)\]:(.*)`)
 )
 
-func ParseGitURL(giturl string) (proto string, host string, port uint, path string, err error) {
+func ParseGitURL(giturl string) (proto string, host string, port uint, path string, exotic bool, err error) {
 	// ref: parse_connect_url() in connect.c
 
 	if rxURLLike.MatchString(giturl) {
@@ -28,25 +29,26 @@ func ParseGitURL(giturl string) (proto string, host string, port uint, path stri
 		if proto == "git+ssh" || proto == "ssh+git" {
 			proto = "ssh"
 		}
+
 		host = u.Host
+		path = u.Path
+
 		if proto == "ssh" {
 			if m := rxHostAndPort.FindStringSubmatch(host); m != nil {
-				var port64 uint64
-				host = m[1]
-				port64, err = strconv.ParseUint(m[2], 10, 16)
-				if err != nil {
-					return
+				if port64, err := strconv.ParseUint(m[2], 10, 16); err == nil {
+					host = m[1]
+					port = uint(port64)
 				}
-				port = uint(port64)
+			}
+			if host[0] == '[' && host[len(host)-1] == ']' {
+				host = host[1 : len(host)-1]
 			}
 		}
-		if proto == "ssh" && host[0] == '[' && host[len(host)-1] == ']' {
-			host = host[1 : len(host)-1]
-		}
+
 		if u.User != nil {
 			host = u.User.String() + "@" + host
 		}
-		path = u.Path
+
 		if proto == "git" || proto == "ssh" {
 			if path[1] == '~' {
 				path = path[1:]
@@ -55,8 +57,7 @@ func ParseGitURL(giturl string) (proto string, host string, port uint, path stri
 			host = ""
 			path = u.Host + u.Path
 		} else {
-			host = u.Host
-			path = u.Path
+			exotic = true
 		}
 	} else {
 		colon := strings.IndexByte(giturl, ':')
@@ -69,7 +70,7 @@ func ParseGitURL(giturl string) (proto string, host string, port uint, path stri
 			// - user@[::1]:path/to/repo.git/
 			// - [::1]:path/to/repo.git/
 			proto = "ssh"
-			m := regexp.MustCompile(`^(.+?@)?\[(.+?)\]:(.*)`).FindStringSubmatch(giturl)
+			m := rxSCPLikeV6.FindStringSubmatch(giturl)
 			if m != nil {
 				host = m[1] + m[2]
 				path = m[3]

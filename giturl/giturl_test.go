@@ -13,9 +13,12 @@ func checkParseGitURL(t *testing.T, url string) {
 	t.Logf("URL: %s", url)
 
 	got := map[string]string{}
-	proto, host, port, path, err := ParseGitURL(url)
+	proto, host, port, path, exotic, err := ParseGitURL(url)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if exotic == true {
+		t.Errorf("protocol should not be exotic: %q", url)
 	}
 
 	got["url"] = url
@@ -108,11 +111,13 @@ func TestParseGitURL_HTTP(t *testing.T) {
 	for _, repo := range []string{"repo", "re:po", "re/po"} {
 		for _, host := range []string{"host", "host:80"} {
 			for _, proto := range []string{"http", "https"} {
-				p, _, _, _, err := ParseGitURL(fmt.Sprintf("%s://%s/%s", proto, host, repo))
+				p, _, _, _, exotic, err := ParseGitURL(fmt.Sprintf("%s://%s/%s", proto, host, repo))
 				if err != nil {
 					t.Error(err)
 				} else if p != proto {
 					t.Errorf("expected protocol %q but got %q", proto, p)
+				} else if exotic == false {
+					t.Errorf("protocol %q should be exotic", p)
 				}
 			}
 		}
