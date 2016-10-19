@@ -4,22 +4,27 @@ package ctxlog
 
 import (
 	"context"
+	"log"
 )
 
-func PrefixFromContext(ctx context.Context) string {
-	prefix, _ := ctx.Value(PrefixContextKey).(string)
-	return prefix
+func FromContext(ctx context.Context) *log.Logger {
+	logger, ok := ctx.Value(LoggerContextKey).(*log.Logger)
+	if !ok {
+		logger = Logger
+	}
+	return logger
 }
 
-func NewContextWithPrefix(ctx context.Context, prefix string) context.Context {
-	basePrefix := PrefixFromContext(ctx)
-	return context.WithValue(ctx, PrefixContextKey, basePrefix+prefix)
+func NewContext(ctx context.Context, prefix string) context.Context {
+	logger := FromContext(ctx)
+	newLogger := log.New(output, logger.Prefix()+prefix, logger.Flags())
+	return context.WithValue(ctx, LoggerContextKey, newLogger)
 }
 
 func logf(ctx context.Context, level string, format string, args ...interface{}) {
-	prefix := PrefixFromContext(ctx)
-	args = append([]interface{}{prefix, level}, args...)
-	Logger.Printf("%s%s: "+format, args...)
+	logger := FromContext(ctx)
+	args = append([]interface{}{level}, args...)
+	logger.Printf("%s: "+format, args...)
 }
 
 func Debugf(ctx context.Context, format string, args ...interface{}) {

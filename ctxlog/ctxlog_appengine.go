@@ -3,42 +3,52 @@
 package ctxlog
 
 import (
+	"log"
+
 	"golang.org/x/net/context"
-	"google.golang.org/appengine/log"
+	aelog "google.golang.org/appengine/log"
 )
 
-func logf(ctx context.Context, level string, format string, args ...interface{}) {
-	prefix := PrefixFromContext(ctx)
-	args = append([]interface{}{prefix, level}, args...)
-	Logger.Printf("%s%s: "+format, args...)
+func FromContext(ctx context.Context) *log.Logger {
+	logger, ok := ctx.Value(LoggerContextKey).(*log.Logger)
+	if !ok {
+		logger = Logger
+	}
+	return logger
+}
+
+func NewContext(ctx context.Context, prefix string) context.Context {
+	logger := FromContext(ctx)
+	newLogger := log.New(output, logger.Prefix()+prefix, logger.Flags())
+	return context.WithValue(ctx, LoggerContextKey, newLogger)
 }
 
 func Debugf(ctx context.Context, format string, args ...interface{}) {
-	prefix := PrefixFromContext(ctx)
+	prefix := FromContext(ctx).Prefix()
 	args = append([]interface{}{prefix}, args...)
-	log.Debugf(ctx, "%s"+format, args...)
+	aelog.Debugf(ctx, "%s"+format, args...)
 }
 
 func Infof(ctx context.Context, format string, args ...interface{}) {
-	prefix := PrefixFromContext(ctx)
+	prefix := FromContext(ctx).Prefix()
 	args = append([]interface{}{prefix}, args...)
-	log.Infof(ctx, "%s"+format, args...)
+	aelog.Infof(ctx, "%s"+format, args...)
 }
 
 func Warningf(ctx context.Context, format string, args ...interface{}) {
-	prefix := PrefixFromContext(ctx)
+	prefix := FromContext(ctx).Prefix()
 	args = append([]interface{}{prefix}, args...)
-	log.Warningf(ctx, "%s"+format, args...)
+	aelog.Warningf(ctx, "%s"+format, args...)
 }
 
 func Errorf(ctx context.Context, format string, args ...interface{}) {
-	prefix := PrefixFromContext(ctx)
+	prefix := FromContext(ctx).Prefix()
 	args = append([]interface{}{prefix}, args...)
-	log.Errorf(ctx, "%s"+format, args...)
+	aelog.Errorf(ctx, "%s"+format, args...)
 }
 
 func Criticalf(ctx context.Context, format string, args ...interface{}) {
-	prefix := PrefixFromContext(ctx)
+	prefix := FromContext(ctx).Prefix()
 	args = append([]interface{}{prefix}, args...)
-	log.Criticalf(ctx, "%s"+format, args...)
+	aelog.Criticalf(ctx, "%s"+format, args...)
 }
