@@ -1,8 +1,11 @@
+// +build go1.7
+
 package ctxlog
 
 import (
-	"context"
 	"testing"
+
+	"context"
 )
 
 func testPrefix(t *testing.T, ctx context.Context, expect string) {
