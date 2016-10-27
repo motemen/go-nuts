@@ -1,21 +1,23 @@
 package minipipeline
 
 import (
+	"fmt"
 	"log"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 type Set struct {
-	mu        sync.Mutex
-	pipelines map[string]*Pipeline
+	sync.Mutex
+	Pipelines []*Pipeline
 }
 
 type Pipeline struct {
-	mu    sync.Mutex
-	id    string
-	steps []*Step
-	err   error
+	Name  string
+	Steps []*Step
+	Err   error
 }
 
 type Step struct {
@@ -23,91 +25,107 @@ type Step struct {
 	StartedAt  time.Time
 	FinishedAt time.Time
 	Err        error
+
+	progressDone uint32
+	progressAll  uint32
+
+	progressMu sync.Mutex
 }
 
-func (s *Set) Pipeline(id string) *Pipeline {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *Step) ProgressDone(delta uint32) {
+	s.progressMu.Lock()
+	defer s.progressMu.Unlock()
 
-	if s.pipelines == nil {
-		s.pipelines = map[string]*Pipeline{}
-	}
+	s.progressDone += delta
+}
 
-	if p, ok := s.pipelines[id]; ok {
-		return p
-	}
+func (s *Step) ProgressAll(delta uint32) {
+	s.progressMu.Lock()
+	defer s.progressMu.Unlock()
 
-	p := &Pipeline{
-		id:    id,
-		steps: []*Step{},
-	}
-	s.pipelines[id] = p
+	s.progressAll += delta
+}
+
+func (s *Set) Pipeline(name string) *Pipeline {
+	s.Lock()
+	defer s.Unlock()
+
+	p := &Pipeline{Name: name}
+	s.Pipelines = append(s.Pipelines, p)
+
 	return p
 }
 
-/*
-func (s *Set) WriteTo(w io.Writer) {
-	table := tablewriter.NewWriter(w)
-
-	headers := []string{}
-	for _, p := range s.pipelines {
-		for i := len(headers); i < len(p.steps); i++ {
-			headers = append(headers, p.steps[i].Name)
-		}
-	}
-	table.SetHeader(append([]string{"id"}, headers...))
-
-	for id, p := range s.pipelines {
-		row := make([]string, 1+len(p.steps))
-		row[0] = id
-		for i, s := range p.steps {
-			if s.FinishedAt.IsZero() {
-				row[i+1] = "●"
-			} else if s.Err != nil {
-				row[i+1] = "✗ " + s.Err.Error()
-			} else {
-				row[i+1] = "✓ " + s.FinishedAt.Sub(s.StartedAt).String()
-			}
-		}
-		table.Append(row)
+func (p *Pipeline) Step(name string, fn func() error) error {
+	if p.Err != nil {
+		return p.Err
 	}
 
-	table.Render()
-}
-*/
+	step := &Step{Name: name}
+	p.Steps = append(p.Steps, step)
 
-func (p *Pipeline) Step(name string, fn func() error) {
-	if p.err != nil {
-		return
-	}
-
-	step := &Step{
-		Name: name,
-	}
-
-	p.mu.Lock()
-	p.steps = append(p.steps, step)
-	p.mu.Unlock()
-
-	log.Printf("[%s] %s {", p.id, name)
+	log.Printf("%s {", name)
 
 	step.StartedAt = time.Now()
 	err := fn()
 	step.FinishedAt = time.Now()
 
-	log.Printf("[%s] } // %s err=%v", p.id, name, err)
+	log.Printf("} // %s", name)
 
-	if err != nil {
-		step.Err = err
+	step.Err = err
+	p.Err = err
 
-		p.mu.Lock()
-		if p.err == nil {
-			p.err = err
-		}
-		p.mu.Unlock()
+	return err
+}
+
+func (p *Pipeline) Current() *Step {
+	if len(p.Steps) == 0 {
+		return nil
+	}
+
+	step := p.Steps[len(p.Steps)-1]
+	if step.FinishedAt.IsZero() {
+		// step is running
+		return step
+	}
+
+	return nil
+}
+
+type ProgressGroup struct {
+	step *Step
+	*errgroup.Group
+}
+
+func (s *Step) ProgressGroup() ProgressGroup {
+	return ProgressGroup{
+		step:  s,
+		Group: new(errgroup.Group),
 	}
 }
 
-func (p *Pipeline) Err() error {
-	return p.err
+func (s *Step) String() string {
+	if s.FinishedAt.IsZero() {
+		// running
+		s.progressMu.Lock()
+		defer s.progressMu.Unlock()
+
+		if s.progressDone != 0 || s.progressAll != 0 {
+			return fmt.Sprintf("● %d/%d", s.progressDone, s.progressAll)
+		} else {
+			return "●"
+		}
+	} else if s.Err != nil {
+		return fmt.Sprintf("✗ %s", s.Err)
+	} else {
+		return fmt.Sprintf("✓ %s", s.FinishedAt.Sub(s.StartedAt))
+	}
+}
+
+func (pg *ProgressGroup) Go(fn func() error) {
+	pg.step.ProgressAll(1)
+	pg.Group.Go(func() error {
+		defer pg.step.ProgressDone(1)
+		return fn()
+	})
 }
