@@ -23,10 +23,7 @@ func NewContext(ctx context.Context, prefix string) context.Context {
 }
 
 func logf(ctx context.Context, level string, format string, args ...interface{}) {
-	logger, ok := FromContext(ctx)
-	if !ok {
-		logger = Logger
-	}
+	logger := FromContext(ctx)
 	args = append([]interface{}{level}, args...)
 	logger.Printf("%s: "+format, args...)
 }
