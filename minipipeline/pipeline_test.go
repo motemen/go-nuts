@@ -10,9 +10,28 @@ func TestSet_Pipeline(t *testing.T) {
 	var set Set
 	p := set.Pipeline("test1")
 
+	done := make(chan struct{})
+
+	go func() {
+		for {
+			select {
+			case <-done:
+				break
+			default:
+			}
+
+			for _, p := range set.Pipelines() {
+				for _, s := range p.Steps {
+					s.String()
+				}
+			}
+		}
+	}()
+
 	logSteps := func() {
-		ss := make([]string, len(p.Steps))
-		for i, s := range p.Steps {
+		steps := p.Steps
+		ss := make([]string, len(steps))
+		for i, s := range steps {
 			ss[i] = s.String()
 		}
 		log.Printf("%v", ss)

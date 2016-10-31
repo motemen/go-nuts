@@ -10,8 +10,8 @@ import (
 )
 
 type Set struct {
-	sync.Mutex
-	Pipelines []*Pipeline
+	sync.RWMutex
+	pipelines []*Pipeline
 }
 
 type Pipeline struct {
@@ -46,12 +46,19 @@ func (s *Step) ProgressAll(delta uint32) {
 	s.progressAll += delta
 }
 
+func (s *Set) Pipelines() []*Pipeline {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.pipelines[:]
+}
+
 func (s *Set) Pipeline(name string) *Pipeline {
 	s.Lock()
 	defer s.Unlock()
 
 	p := &Pipeline{Name: name}
-	s.Pipelines = append(s.Pipelines, p)
+	s.pipelines = append(s.pipelines, p)
 
 	return p
 }
