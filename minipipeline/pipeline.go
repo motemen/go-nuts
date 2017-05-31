@@ -15,12 +15,14 @@ type Set struct {
 }
 
 type Pipeline struct {
+	sync.RWMutex
 	Name  string
 	Steps []*Step
 	Err   error
 }
 
 type Step struct {
+	sync.RWMutex
 	Name       string
 	StartedAt  time.Time
 	FinishedAt time.Time
@@ -28,29 +30,31 @@ type Step struct {
 
 	progressDone uint32
 	progressAll  uint32
-
-	progressMu sync.Mutex
 }
 
 func (s *Step) ProgressDone(delta uint32) {
-	s.progressMu.Lock()
-	defer s.progressMu.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
 	s.progressDone += delta
 }
 
 func (s *Step) ProgressAll(delta uint32) {
-	s.progressMu.Lock()
-	defer s.progressMu.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
 	s.progressAll += delta
 }
 
-func (s *Set) Pipelines() []*Pipeline {
+func (s *Set) Snapshot() []*Pipeline {
 	s.RLock()
 	defer s.RUnlock()
 
-	return s.pipelines[:]
+	pipelines := make([]*Pipeline, len(s.pipelines))
+	for i, p := range s.pipelines {
+		pipelines[i] = p.Copy()
+	}
+	return pipelines
 }
 
 func (s *Set) Pipeline(name string) *Pipeline {
@@ -64,7 +68,10 @@ func (s *Set) Pipeline(name string) *Pipeline {
 }
 
 func (p *Pipeline) Step(name string, fn func() error) error {
+	p.Lock()
+
 	if p.Err != nil {
+		p.Unlock()
 		return p.Err
 	}
 
@@ -74,7 +81,9 @@ func (p *Pipeline) Step(name string, fn func() error) error {
 	log.Printf("%s {", name)
 
 	step.StartedAt = time.Now()
+	p.Unlock()
 	err := fn()
+	p.Lock()
 	step.FinishedAt = time.Now()
 
 	log.Printf("} // %s", name)
@@ -82,10 +91,14 @@ func (p *Pipeline) Step(name string, fn func() error) error {
 	step.Err = err
 	p.Err = err
 
+	p.Unlock()
 	return err
 }
 
 func (p *Pipeline) Current() *Step {
+	p.RLock()
+	defer p.RUnlock()
+
 	if len(p.Steps) == 0 {
 		return nil
 	}
@@ -97,6 +110,25 @@ func (p *Pipeline) Current() *Step {
 	}
 
 	return nil
+}
+
+func (p *Pipeline) Copy() *Pipeline {
+	p.RLock()
+	defer p.RUnlock()
+
+	var copy = *p
+
+	steps := make([]*Step, len(p.Steps))
+	for i, s := range p.Steps {
+		s.RLock()
+		var copy = *s
+		s.RUnlock()
+		steps[i] = &copy
+	}
+
+	copy.Steps = steps
+
+	return &copy
 }
 
 type ProgressGroup struct {
@@ -114,8 +146,8 @@ func (s *Step) ProgressGroup() ProgressGroup {
 func (s *Step) String() string {
 	if s.FinishedAt.IsZero() {
 		// running
-		s.progressMu.Lock()
-		defer s.progressMu.Unlock()
+		s.Lock()
+		defer s.Unlock()
 
 		if s.progressDone != 0 || s.progressAll != 0 {
 			return fmt.Sprintf("● %d/%d", s.progressDone, s.progressAll)

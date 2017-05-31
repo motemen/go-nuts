@@ -20,7 +20,7 @@ func TestSet_Pipeline(t *testing.T) {
 			default:
 			}
 
-			for _, p := range set.Pipelines() {
+			for _, p := range set.Snapshot() {
 				for _, s := range p.Steps {
 					s.String()
 				}
