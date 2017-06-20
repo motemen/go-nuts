@@ -5,12 +5,21 @@ import (
 	"net/http"
 )
 
-func Succeeding(resp *http.Response, err error) (*http.Response, error) {
+type HTTPError struct {
+	StatusCode int
+	Status     string
+}
+
+func (e HTTPError) Error() string {
+	return fmt.Sprintf("%d %s", e.StatusCode, e.Status)
+}
+
+func Successful(resp *http.Response, err error) (*http.Response, error) {
 	if err != nil {
 		return resp, err
 	}
-	if resp.StatusCode >= 400 {
-		return resp, fmt.Errorf("%d %s", resp.StatusCode, resp.Status)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return resp, HTTPError{StatusCode: resp.StatusCode, Status: resp.Status}
 	}
 	return resp, nil
 }
