@@ -7,7 +7,7 @@ import (
 	"log"
 )
 
-func FromContext(ctx context.Context) *log.Logger {
+func LoggerFromContext(ctx context.Context) *log.Logger {
 	logger, ok := ctx.Value(LoggerContextKey).(*log.Logger)
 	if !ok {
 		logger = Logger
@@ -15,16 +15,22 @@ func FromContext(ctx context.Context) *log.Logger {
 	return logger
 }
 
+func PrefixFromContext(ctx context.Context) string {
+	prefix, _ := ctx.Value(PrefixContextKey).(string)
+	return prefix
+}
+
 func NewContext(ctx context.Context, prefix string) context.Context {
-	logger := FromContext(ctx)
-	newLogger := log.New(output, logger.Prefix()+prefix, logger.Flags())
-	return context.WithValue(ctx, LoggerContextKey, newLogger)
+	prefix = PrefixFromContext(ctx) + prefix
+	ctx = context.WithValue(ctx, PrefixContextKey, prefix)
+	return ctx
 }
 
 func logf(ctx context.Context, level string, format string, args ...interface{}) {
-	logger := FromContext(ctx)
-	args = append([]interface{}{level}, args...)
-	logger.Printf("%s: "+format, args...)
+	logger := LoggerFromContext(ctx)
+	prefix := PrefixFromContext(ctx)
+	args = append([]interface{}{prefix}, args...)
+	logger.Printf("%s"+level+": "+format, args...)
 }
 
 func Debugf(ctx context.Context, format string, args ...interface{}) {

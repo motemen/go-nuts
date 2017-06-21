@@ -26,3 +26,4 @@ func SetOutput(w io.Writer) {
 }
 
 var LoggerContextKey = &contextKey{"logger"}
+var PrefixContextKey = &contextKey{"prefix"}
