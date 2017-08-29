@@ -33,24 +33,34 @@ func (lw *LogWriter) Write(p []byte) (n int, err error) {
 			break
 		}
 
-		lw.writeln(buf[0 : n+1])
-
+		lw.writeln(buf[0:n+1], 0)
 		buf = buf[n+1:]
 	}
 
+	lw.buf = buf
+
 	return len(p), nil
+}
+
+func (lw *LogWriter) Close() error {
+	if len(lw.buf) > 0 {
+		lw.writeln(lw.buf, -1)
+		lw.buf = nil
+	}
+
+	return nil
 }
 
 func (lw *LogWriter) ReadFrom(r io.Reader) (n int64, err error) {
 	s := bufio.NewScanner(r)
 	for s.Scan() {
-		lw.writeln(s.Bytes())
+		lw.writeln(s.Bytes(), 0)
 	}
 
 	return 0, s.Err()
 }
 
-func (lw LogWriter) writeln(line []byte) {
+func (lw LogWriter) writeln(line []byte, delta int) {
 	var s string
 	if lw.Format == "" {
 		s = fmt.Sprintln(string(line))
@@ -69,5 +79,5 @@ func (lw LogWriter) writeln(line []byte) {
 		calldepth = 4
 	}
 
-	lw.Logger.Output(calldepth, s)
+	lw.Logger.Output(calldepth+delta, s)
 }

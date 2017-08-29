@@ -29,4 +29,12 @@ func TestLogWriter(t *testing.T) {
 	fmt.Fprintln(w, "baz")
 
 	mustEqual(t, buf.String(), "logwriter_test.go:24: [test] foo\nlogwriter_test.go:29: [test] bar-baz\n")
+
+	fmt.Fprint(w, "qux")
+
+	mustEqual(t, buf.String(), "logwriter_test.go:24: [test] foo\nlogwriter_test.go:29: [test] bar-baz\n")
+
+	w.Close()
+
+	mustEqual(t, buf.String(), "logwriter_test.go:24: [test] foo\nlogwriter_test.go:29: [test] bar-baz\nlogwriter_test.go:37: [test] qux\n")
 }
