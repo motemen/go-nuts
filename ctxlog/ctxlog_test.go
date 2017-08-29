@@ -5,20 +5,20 @@ package ctxlog
 import (
 	"testing"
 
+	"bytes"
 	"context"
 )
 
 func testPrefix(t *testing.T, ctx context.Context, expect string) {
-	logger := FromContext(ctx)
-	if logger.Prefix() != expect {
-		t.Errorf("prefix should be %q: got %q", expect, logger.Prefix())
-	}
-}
+	var buf bytes.Buffer
 
-func TestFromContext(t *testing.T) {
-	logger := FromContext(context.Background())
-	if logger.Prefix() != "" {
-		t.Errorf("prefix should be %q: got %q", "", logger.Prefix())
+	logger := LoggerFromContext(ctx)
+	logger.SetOutput(&buf)
+	logger.SetFlags(0)
+	Infof(ctx, "")
+
+	if o := buf.String(); o[:len(o)-len("info: \n")] != expect {
+		t.Errorf("prefix should be %q: got %q", expect, o[:len(o)-1])
 	}
 }
 
