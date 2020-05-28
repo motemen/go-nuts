@@ -30,7 +30,7 @@ func (t *CharsetTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 
 	r, err := charset.NewReader(resp.Body, resp.Header.Get("Content-Type"))
-	if err != nil {
+	if err != nil && err != io.EOF {
 		return resp, err
 	}
 
