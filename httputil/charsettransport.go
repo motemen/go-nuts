@@ -1,6 +1,7 @@
 package httputil
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 
@@ -32,6 +33,10 @@ func (t *CharsetTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	r, err := charset.NewReader(resp.Body, resp.Header.Get("Content-Type"))
 	if err != nil && err != io.EOF {
 		return resp, err
+	}
+
+	if r == nil {
+		r = bytes.NewReader(nil)
 	}
 
 	resp.Body = &readCloser{
