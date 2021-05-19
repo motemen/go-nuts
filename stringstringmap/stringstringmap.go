@@ -8,7 +8,26 @@ import (
 	"strings"
 )
 
-func encodeToText(v interface{}) (string, error) {
+var ErrSkipOverride = fmt.Errorf("skip this override")
+
+type Encoder struct {
+	OverrideEncode func(v interface{}, field reflect.StructField) (string, error)
+}
+
+type Decoder struct {
+	OverrideDecode func(s string, v interface{}, field reflect.StructField) error
+}
+
+func (e Encoder) encodeToText(v interface{}, field reflect.StructField) (string, error) {
+	if e.OverrideEncode != nil {
+		s, err := e.OverrideEncode(v, field)
+		if err == nil {
+			return s, nil
+		} else if err != ErrSkipOverride {
+			return "", err
+		}
+	}
+
 	if m, ok := v.(encoding.TextMarshaler); ok {
 		b, err := m.MarshalText()
 		if err != nil {
@@ -29,14 +48,15 @@ func encodeToText(v interface{}) (string, error) {
 		return rv.String(), nil
 
 	case reflect.Bool:
-		return fmt.Sprint(rv.Bool()), nil
+		return strconv.FormatBool(rv.Bool()), nil
+
+	case reflect.Float32, reflect.Float64:
+		return strconv.FormatFloat(rv.Float(), 'g', -1, 64), nil
 
 	case reflect.Array:
 	case reflect.Chan:
 	case reflect.Complex128:
 	case reflect.Complex64:
-	case reflect.Float32:
-	case reflect.Float64:
 	case reflect.Func:
 	case reflect.Interface:
 	case reflect.Invalid:
@@ -48,10 +68,19 @@ func encodeToText(v interface{}) (string, error) {
 	case reflect.UnsafePointer:
 	}
 
-	return "", fmt.Errorf("unsupported: %v (type %T)", v, v)
+	return "", fmt.Errorf("unsupported type %T", v)
 }
 
-func decodeFromText(s string, v interface{}) error {
+func (d Decoder) decodeFromText(s string, v interface{}, field reflect.StructField) error {
+	if d.OverrideDecode != nil {
+		err := d.OverrideDecode(s, v, field)
+		if err == nil {
+			return nil
+		} else if err != ErrSkipOverride {
+			return err
+		}
+	}
+
 	if u, ok := v.(encoding.TextUnmarshaler); ok {
 		return u.UnmarshalText([]byte(s))
 	}
@@ -82,23 +111,29 @@ func decodeFromText(s string, v interface{}) error {
 		return nil
 
 	case reflect.Bool:
-		if s == "true" || s == "false" {
-			rv.SetBool(s == "true")
-			return nil
-		} else {
-			return fmt.Errorf("cannot parse to bool: %s", s)
+		b, err := strconv.ParseBool(s)
+		if err != nil {
+			return err
 		}
+		rv.SetBool(b)
+		return nil
 
 	case reflect.String:
 		rv.SetString(s)
+		return nil
+
+	case reflect.Float32, reflect.Float64:
+		f, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return err
+		}
+		rv.SetFloat(f)
 		return nil
 
 	case reflect.Array:
 	case reflect.Chan:
 	case reflect.Complex128:
 	case reflect.Complex64:
-	case reflect.Float32:
-	case reflect.Float64:
 	case reflect.Func:
 	case reflect.Interface:
 	case reflect.Invalid:
@@ -110,16 +145,16 @@ func decodeFromText(s string, v interface{}) error {
 	case reflect.UnsafePointer:
 	}
 
-	return fmt.Errorf("unsupported: %T", v)
+	return fmt.Errorf("unsupported type: %s", rv.Type())
 }
 
-func Encode(v interface{}) (map[string]string, error) {
+func (e Encoder) Encode(v interface{}) (map[string]string, error) {
 	m := map[string]string{}
 	rv := reflect.ValueOf(v)
-	return encodeToStringStringMap(rv, m)
+	return e.encodeToStringStringMap(rv, m)
 }
 
-func encodeToStringStringMap(rv reflect.Value, m map[string]string) (map[string]string, error) {
+func (e Encoder) encodeToStringStringMap(rv reflect.Value, m map[string]string) (map[string]string, error) {
 	rt := rv.Type()
 
 	embeddedIdx := []int{}
@@ -133,7 +168,7 @@ func encodeToStringStringMap(rv reflect.Value, m map[string]string) (map[string]
 	// TODO(motemen): how about decoding?
 	for _, i := range embeddedIdx {
 		fv := rv.Field(i)
-		_, err := encodeToStringStringMap(fv, m)
+		_, err := e.encodeToStringStringMap(fv, m)
 		if err != nil {
 			return nil, fmt.Errorf("encodeToStringStringMap: %w", err)
 		}
@@ -153,23 +188,23 @@ func encodeToStringStringMap(rv reflect.Value, m map[string]string) (map[string]
 		}
 
 		var err error
-		m[field.Name], err = encodeToText(fv.Interface())
+		m[field.Name], err = e.encodeToText(fv.Interface(), field)
 		if err != nil {
-			return nil, fmt.Errorf("encodeToText: %w", err)
+			return nil, fmt.Errorf("encoding field %s: %w", field.Name, err)
 		}
 	}
 
 	return m, nil
 }
 
-func decodeFromStringStringMap(rv reflect.Value, m map[string]string) error {
+func (d Decoder) decodeFromStringStringMap(rv reflect.Value, m map[string]string) error {
 	rt := rv.Type()
 
 	for i, n := 0, rt.NumField(); i < n; i++ {
 		fv := rv.Field(i)
 		field := rt.Field(i)
 		if field.Anonymous {
-			err := decodeFromStringStringMap(fv, m)
+			err := d.decodeFromStringStringMap(fv, m)
 			if err != nil {
 				return fmt.Errorf("decoding embedded field %v: %w", rt.Field(i).Name, err)
 			}
@@ -181,7 +216,7 @@ func decodeFromStringStringMap(rv reflect.Value, m map[string]string) error {
 			continue
 		}
 
-		err := decodeFromText(m[field.Name], fv.Addr().Interface())
+		err := d.decodeFromText(m[field.Name], fv.Addr().Interface(), field)
 		if err != nil {
 			return fmt.Errorf("decoding field %v: %w", field.Name, err)
 		}
@@ -190,12 +225,20 @@ func decodeFromStringStringMap(rv reflect.Value, m map[string]string) error {
 	return nil
 }
 
-func Decode(m map[string]string, v interface{}) error {
+func (d Decoder) Decode(m map[string]string, v interface{}) error {
 	pv := reflect.ValueOf(v)
 	// make a copy as decodeFromStringStringMap destroys it
 	m2 := make(map[string]string, len(m))
 	for k, v := range m {
 		m2[k] = v
 	}
-	return decodeFromStringStringMap(pv.Elem(), m2)
+	return d.decodeFromStringStringMap(pv.Elem(), m2)
+}
+
+func Marshal(v interface{}) (map[string]string, error) {
+	return Encoder{}.Encode(v)
+}
+
+func Unmarshal(m map[string]string, v interface{}) error {
+	return Decoder{}.Decode(m, v)
 }
