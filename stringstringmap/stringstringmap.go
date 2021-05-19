@@ -12,10 +12,12 @@ var ErrSkipOverride = fmt.Errorf("skip this override")
 
 type Encoder struct {
 	OverrideEncode func(v interface{}, field reflect.StructField) (string, error)
+	Omitempty      bool
 }
 
 type Decoder struct {
 	OverrideDecode func(s string, v interface{}, field reflect.StructField) error
+	Omitempty      bool
 }
 
 func (e Encoder) encodeToText(v interface{}, field reflect.StructField) (string, error) {
@@ -183,7 +185,7 @@ func (e Encoder) encodeToStringStringMap(rv reflect.Value, m map[string]string) 
 		}
 
 		tag := field.Tag.Get("stringstringmap")
-		if strings.Contains(tag, ",omitempty") && fv.IsZero() {
+		if (e.Omitempty || strings.Contains(tag, ",omitempty")) && fv.IsZero() {
 			continue
 		}
 
@@ -212,7 +214,7 @@ func (d Decoder) decodeFromStringStringMap(rv reflect.Value, m map[string]string
 		}
 
 		tag := field.Tag.Get("stringstringmap")
-		if strings.Contains(tag, ",omitempty") && m[field.Name] == "" {
+		if (d.Omitempty || strings.Contains(tag, ",omitempty")) && m[field.Name] == "" {
 			continue
 		}
 

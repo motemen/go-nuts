@@ -54,7 +54,7 @@ type Embedded struct {
 	String2 string
 }
 
-func TestEncode(t *testing.T) {
+func TestEncodeDecode(t *testing.T) {
 	tests := []struct {
 		v     interface{}
 		m     map[string]string
@@ -151,5 +151,32 @@ func TestEncode(t *testing.T) {
 		if diff := cmp.Diff(test.v, v2); diff != "" {
 			t.Fatalf("got diff:\n%s", diff)
 		}
+	}
+}
+
+func TestEncodeDecode_Omitempty(t *testing.T) {
+	e := Encoder{
+		Omitempty: true,
+	}
+	d := Decoder{
+		Omitempty: true,
+	}
+
+	v := struct {
+		Int    int
+		String string
+	}{
+		0,
+		"",
+	}
+
+	m, err := e.Encode(v)
+	if err != nil {
+		t.Fatalf("got error: %v", err)
+	}
+
+	err = d.Decode(m, &v)
+	if err != nil {
+		t.Fatalf("got error: %v", err)
 	}
 }
