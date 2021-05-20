@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 type base64EncodedString string
@@ -38,7 +39,9 @@ type s struct {
 	Omitempty int `stringstringmap:",omitempty"`
 	Base64    base64EncodedString
 	Embedded
-	Enum enum
+	Enum       enum
+	Skip       string `stringstringmap:"-"`
+	unexported int
 }
 
 type enum int
@@ -73,6 +76,7 @@ func TestEncodeDecode(t *testing.T) {
 					String2: "bar",
 				},
 				Enum: e1,
+				Skip: "skipthis",
 			},
 			m: map[string]string{
 				"Int":     "-99",
@@ -148,7 +152,11 @@ func TestEncodeDecode(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if diff := cmp.Diff(test.v, v2); diff != "" {
+		if diff := cmp.Diff(
+			test.v, v2,
+			cmp.FilterPath(func(p cmp.Path) bool { return p.String() == "Skip" }, cmp.Ignore()),
+			cmpopts.IgnoreUnexported(s{}),
+		); diff != "" {
 			t.Fatalf("got diff:\n%s", diff)
 		}
 	}

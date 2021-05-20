@@ -161,6 +161,10 @@ func (e Encoder) encodeToStringStringMap(rv reflect.Value, m map[string]string) 
 
 	embeddedIdx := []int{}
 	for i, n := 0, rt.NumField(); i < n; i++ {
+		if rt.Field(i).PkgPath != "" {
+			// unexported field
+			continue
+		}
 		if rt.Field(i).Anonymous {
 			embeddedIdx = append(embeddedIdx, i)
 		}
@@ -180,11 +184,18 @@ func (e Encoder) encodeToStringStringMap(rv reflect.Value, m map[string]string) 
 	for i, n := 0, rt.NumField(); i < n; i++ {
 		fv := rv.Field(i)
 		field := rt.Field(i)
+		if field.PkgPath != "" {
+			// unexported field
+			continue
+		}
 		if field.Anonymous {
 			continue
 		}
 
 		tag := field.Tag.Get("stringstringmap")
+		if tag == "-" || strings.HasPrefix(tag, "-,") {
+			continue
+		}
 		if (e.Omitempty || strings.Contains(tag, ",omitempty")) && fv.IsZero() {
 			continue
 		}
@@ -205,6 +216,9 @@ func (d Decoder) decodeFromStringStringMap(rv reflect.Value, m map[string]string
 	for i, n := 0, rt.NumField(); i < n; i++ {
 		fv := rv.Field(i)
 		field := rt.Field(i)
+		if !fv.CanSet() {
+			continue
+		}
 		if field.Anonymous {
 			err := d.decodeFromStringStringMap(fv, m)
 			if err != nil {
@@ -214,6 +228,9 @@ func (d Decoder) decodeFromStringStringMap(rv reflect.Value, m map[string]string
 		}
 
 		tag := field.Tag.Get("stringstringmap")
+		if tag == "-" || strings.HasPrefix(tag, "-,") {
+			continue
+		}
 		if (d.Omitempty || strings.Contains(tag, ",omitempty")) && m[field.Name] == "" {
 			continue
 		}
