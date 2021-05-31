@@ -16,7 +16,7 @@ func TestSet_Pipeline(t *testing.T) {
 		for {
 			select {
 			case <-done:
-				break
+				return
 			default:
 			}
 

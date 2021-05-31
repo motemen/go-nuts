@@ -39,8 +39,9 @@ type s struct {
 	Omitempty int `stringstringmap:",omitempty"`
 	Base64    base64EncodedString
 	Embedded
-	Enum       enum
-	Skip       string `stringstringmap:"-"`
+	Enum enum
+	Skip string `stringstringmap:"-"`
+	//lint:ignore U1000 testing purpose
 	unexported int
 }
 

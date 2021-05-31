@@ -11,7 +11,8 @@ var Logger = log.New(os.Stderr, "", log.LstdFlags)
 
 var (
 	outputMu sync.Mutex
-	output   io.Writer = os.Stderr
+	//lint:ignore U1000 required for ctxlog_17.go
+	output io.Writer = os.Stderr
 )
 
 type contextKey struct {
