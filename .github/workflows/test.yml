@@ -12,6 +12,11 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
+    - name: staticcheck
+      uses: reviewdog/action-staticcheck@v1.0.0
+      with:
+        reporter: github-check
+
     - name: Set up Go
       uses: actions/setup-go@v2
       with:
@@ -19,11 +24,6 @@ jobs:
 
     - name: Build
       run: go build -v ./...
-
-    - name: staticcheck
-      uses: reviewdog/action-staticcheck@v1.0.0
-      with:
-        reporter: github-check
 
     - name: Test
       run: go test -v ./...
