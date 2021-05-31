@@ -41,9 +41,7 @@ func (l NetworkBlocklist) Control(network, address string, c syscall.RawConn) er
 				}
 			}
 		}
-	}
-
-	if addr.To16() != nil {
+	} else if addr.To16() != nil {
 		for _, n := range l.V6 {
 			if n.IPNet.Contains(addr) {
 				return ErrBlocked{
@@ -52,9 +50,7 @@ func (l NetworkBlocklist) Control(network, address string, c syscall.RawConn) er
 				}
 			}
 		}
-	}
-
-	if addr.To4() == nil && addr.To16() == nil {
+	} else {
 		return fmt.Errorf("BUG: unreachable")
 	}
 
