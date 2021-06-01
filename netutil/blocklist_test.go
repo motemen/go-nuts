@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/http"
 	"testing"
 	"time"
 
@@ -13,6 +14,11 @@ import (
 func TestPrivateNetworkBlocklist(t *testing.T) {
 	dialer := &net.Dialer{
 		Control: PrivateNetworkBlocklist.Control,
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = dialer.DialContext
+	client := &http.Client{
+		Transport: transport,
 	}
 
 	tests := []struct {
@@ -37,8 +43,9 @@ func TestPrivateNetworkBlocklist(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-		conn, err := dialer.DialContext(ctx, "tcp", test.addr+":80")
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		req, _ := http.NewRequestWithContext(ctx, "GET", "http://"+test.addr, nil)
+		_, err := client.Do(req)
 		var berr ErrBlocked
 		if test.shouldBlock {
 			assert.ErrorAs(t, err, &ErrBlocked{})
@@ -46,9 +53,6 @@ func TestPrivateNetworkBlocklist(t *testing.T) {
 			if errors.As(err, &berr) {
 				t.Errorf("should not block %s but got error: %s", test.addr, err)
 			}
-		}
-		if conn != nil {
-			conn.Close()
 		}
 		cancel()
 	}
@@ -71,13 +75,13 @@ func TestNetworkBlocklist_Control(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	conn, err := dialer.DialContext(ctx, "tcp", "8.8.8.8:53")
+	conn, err := dialer.DialContext(ctx, "udp", "8.8.8.8:53")
 	assert.ErrorAs(t, err, &ErrBlocked{})
 	if conn != nil {
 		conn.Close()
 	}
 
-	conn, err = dialer.DialContext(ctx, "tcp", "dns.google:53")
+	conn, err = dialer.DialContext(ctx, "udp", "dns.google:53")
 	assert.ErrorAs(t, err, &ErrBlocked{})
 	if conn != nil {
 		conn.Close()

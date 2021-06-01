@@ -18,10 +18,6 @@ type NetworkBlocklist struct {
 
 // Control is intended to be passed to net.Dialer.Control in order to block dialing to networks specified in l.
 func (l NetworkBlocklist) Control(network, address string, c syscall.RawConn) error {
-	if network != "tcp4" && network != "tcp6" {
-		return fmt.Errorf("invalid network %q: expected tcp4 or tcp6", network)
-	}
-
 	host, _, err := net.SplitHostPort(address)
 	if err != nil {
 		return fmt.Errorf("cannot parse address %q: %w", address, err)
