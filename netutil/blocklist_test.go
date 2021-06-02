@@ -3,6 +3,7 @@ package netutil
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"testing"
@@ -86,4 +87,21 @@ func TestNetworkBlocklist_Control(t *testing.T) {
 	if conn != nil {
 		conn.Close()
 	}
+}
+
+func ExampleNetworkBlocklist_Control() {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = (&net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+		Control:   PrivateNetworkBlocklist.Control,
+	}).DialContext
+
+	client := &http.Client{
+		Transport: transport,
+	}
+
+	_, err := client.Get("http://[::1]/")
+	fmt.Println(err)
+	// Output: Get "http://[::1]/": dial tcp [::1]:80: host is blocked (Loopback Address)
 }
