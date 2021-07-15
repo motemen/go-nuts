@@ -11,17 +11,71 @@ import (
 
 var detector = chardet.NewTextDetector()
 
-type DetectOption func(detectOption) detectOption
+type Detector struct {
+	resultFilter
+}
 
-type detectOption struct {
+type DetectorOption func(resultFilter) resultFilter
+
+var ErrNotDetected = chardet.NotDetectedError
+
+func NewDetector(opts ...DetectorOption) *Detector {
+	var d Detector
+	for _, o := range opts {
+		d.resultFilter = o(d.resultFilter)
+	}
+	return &d
+}
+
+func (d Detector) DetectEncoding(b []byte) (encoding.Encoding, string) {
+	results, err := detector.DetectAll(b)
+	if err != nil {
+		return nil, ""
+	}
+
+	results = d.resultFilter.filter(results)
+	if len(results) == 0 {
+		return nil, ""
+	}
+
+	charset := results[0].Charset
+
+	enc, err := ianaindex.IANA.Encoding(charset)
+	if err != nil {
+		return nil, ""
+	}
+
+	return enc, charset
+}
+
+func WithCharset(charsets ...string) DetectorOption {
+	return func(dc resultFilter) resultFilter {
+		dc.charsets = charsets
+		return dc
+	}
+}
+
+func WithLanguage(langs ...string) DetectorOption {
+	return func(dc resultFilter) resultFilter {
+		dc.languages = langs
+		return dc
+	}
+}
+
+func WithPrefer(f func(a, b chardet.Result) bool) DetectorOption {
+	return func(dc resultFilter) resultFilter {
+		dc.prefer = f
+		return dc
+	}
+}
+
+type resultFilter struct {
 	charsets  []string
 	languages []string
 	prefer    func(a, b chardet.Result) bool // return true if a is preferable than b
 }
 
-var ErrNotDetected = chardet.NotDetectedError
-
-func (dc detectOption) filter(results []chardet.Result) []chardet.Result {
+func (dc resultFilter) filter(results []chardet.Result) []chardet.Result {
 	if dc.charsets != nil {
 		m := map[string]bool{}
 		for _, k := range dc.charsets {
@@ -64,44 +118,4 @@ func (dc detectOption) filter(results []chardet.Result) []chardet.Result {
 	}
 
 	return results
-}
-
-func DetectEncoding(b []byte, opts ...DetectOption) (encoding.Encoding, error) {
-	results, err := detector.DetectAll(b)
-	if err != nil {
-		return nil, err
-	}
-
-	var dc detectOption
-	for _, o := range opts {
-		dc = o(dc)
-	}
-
-	results = dc.filter(results)
-	if len(results) == 0 {
-		return nil, ErrNotDetected
-	}
-
-	return ianaindex.IANA.Encoding(results[0].Charset)
-}
-
-func WithCharset(charsets ...string) DetectOption {
-	return func(dc detectOption) detectOption {
-		dc.charsets = charsets
-		return dc
-	}
-}
-
-func WithLanguage(langs ...string) DetectOption {
-	return func(dc detectOption) detectOption {
-		dc.languages = langs
-		return dc
-	}
-}
-
-func WithPrefer(f func(a, b chardet.Result) bool) DetectOption {
-	return func(dc detectOption) detectOption {
-		dc.prefer = f
-		return dc
-	}
 }

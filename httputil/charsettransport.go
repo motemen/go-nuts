@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"net/http"
+	"sync"
 
 	"golang.org/x/net/html/charset"
 	"golang.org/x/text/encoding"
@@ -51,8 +52,10 @@ func (t *CharsetTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 type ChardetTransport struct {
-	Base          http.RoundTripper
-	DetectOptions []chardet.DetectOption
+	Base     http.RoundTripper
+	Options  []chardet.DetectorOption
+	once     sync.Once
+	detector *chardet.Detector
 }
 
 func (t *ChardetTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -61,22 +64,24 @@ func (t *ChardetTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		base = http.DefaultTransport
 	}
 
+	t.once.Do(func() {
+		t.detector = chardet.NewDetector(t.Options...)
+	})
+
 	resp, err := base.RoundTrip(req)
 	if err != nil {
 		return resp, err
 	}
 
 	// from golang.org/x/net/html/charset.NewReader
-	var r io.Reader
+	var r io.Reader = resp.Body
 
 	preview := make([]byte, 1024)
 	n, err := io.ReadFull(resp.Body, preview)
 	switch {
-	case err == io.ErrUnexpectedEOF:
+	case err == io.ErrUnexpectedEOF || err == io.EOF:
 		preview = preview[:n]
 		r = bytes.NewReader(preview)
-	case err == io.EOF:
-		r = bytes.NewReader(nil)
 	case err != nil:
 		return nil, err
 	default:
@@ -84,14 +89,8 @@ func (t *ChardetTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 
 	if n > 0 {
-		enc, _, certain := charset.DetermineEncoding(preview, resp.Header.Get("Content-Type"))
-		if !certain {
-			if e, _ := chardet.DetectEncoding(preview, t.DetectOptions...); e != nil {
-				enc = e
-			}
-		}
-
-		if enc != nil && enc != encoding.Nop {
+		enc, _, _ := chardet.DetermineEncoding(preview, resp.Header.Get("Content-Type"), t.detector.DetectEncoding)
+		if enc != encoding.Nop {
 			r = transform.NewReader(r, enc.NewDecoder())
 		}
 	}

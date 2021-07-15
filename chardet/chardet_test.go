@@ -12,12 +12,13 @@ import (
 
 func TestDetectEncoding(t *testing.T) {
 	ff, _ := filepath.Glob("testdata/*.txt")
+	detector := NewDetector(WithLanguage("ja", ""))
 	for _, f := range ff {
 		filename := filepath.Base(f)
 		t.Run(filename, func(t *testing.T) {
 			b, _ := os.ReadFile(f)
-			enc, err := DetectEncoding(b, WithLanguage("ja", ""))
-			if !assert.NoError(t, err) {
+			enc, name := detector.DetectEncoding(b)
+			if assert.NotEqual(t, "", name) {
 				return
 			}
 			assert.Equal(

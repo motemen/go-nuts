@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/motemen/go-nuts/chardet"
 )
 
 func TestCharsetTransport(t *testing.T) {
@@ -20,6 +22,40 @@ func TestCharsetTransport(t *testing.T) {
 	}
 
 	resp, err := client.Get(s.URL + "/euc-jp.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "こんにちは、世界") {
+		t.Fatal(string(b))
+	}
+
+	_, err = client.Get(s.URL + "/empty.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestChardetTransport(t *testing.T) {
+	mime.AddExtensionType(".html", "text/html; charset=unknown")
+
+	s := httptest.NewServer(http.FileServer(http.Dir("testdata")))
+	defer s.Close()
+
+	client := &http.Client{
+		Transport: &ChardetTransport{
+			Options: []chardet.DetectorOption{
+				chardet.WithLanguage("ja", ""),
+			},
+		},
+	}
+
+	resp, err := client.Get(s.URL + "/euc-jp.nohint.html")
 	if err != nil {
 		t.Fatal(err)
 	}
