@@ -83,25 +83,3 @@ func normalizeComponent(component string, special string, escape func(string) st
 
 	return escaped, nil
 }
-
-func escapeQuery(query string) (string, error) {
-	escaped := ""
-
-	for query != "" {
-		var part, sep string
-		if i := strings.IndexAny(query, "&;="); i >= 0 {
-			part, sep, query = query[:i], query[i:i+1], query[i+1:]
-		} else {
-			part, sep, query = query, "", ""
-		}
-
-		un, err := url.QueryUnescape(part)
-		if err != nil {
-			return "", err
-		}
-
-		escaped += url.QueryEscape(un) + sep
-	}
-
-	return escaped, nil
-}
