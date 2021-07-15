@@ -71,6 +71,10 @@ func TestNormalizeURL(t *testing.T) {
 			in:   "https://localhost/a/./b/../c",
 			want: "https://localhost/a/c",
 		},
+		{
+			in:   "https://localhost/a//b//c/",
+			want: "https://localhost/a/b/c/",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {

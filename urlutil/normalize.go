@@ -48,7 +48,13 @@ func NormalizeURL(u *url.URL) (*url.URL, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	hadSlash := path[len(path)-1] == '/'
 	u.RawPath = pathPkg.Clean(path)
+	if hadSlash && u.RawPath[len(u.RawPath)-1] != '/' {
+		u.RawPath += "/"
+	}
+
 	u.Path, err = url.PathUnescape(u.RawPath)
 	if err != nil {
 		return nil, err
