@@ -2,11 +2,15 @@ package urlutil
 
 import (
 	"net/url"
-	pathPkg "path"
 	"strings"
 
 	"golang.org/x/net/idna"
 )
+
+func CloneURL(u *url.URL) *url.URL {
+	u2 := *u
+	return &u2
+}
 
 var defaultPorts = map[string]string{
 	"https": "443",
@@ -16,21 +20,24 @@ var defaultPorts = map[string]string{
 // NormalizeURL normalizes URL u in such manner:
 // - all components should be represented in ASCII
 // - precent encoding in upper case
+// https://datatracker.ietf.org/doc/html/rfc3986#section-6
 func NormalizeURL(u *url.URL) (*url.URL, error) {
+	u = CloneURL(u)
+
 	u.Scheme = strings.ToLower(u.Scheme)
 
 	port := u.Port()
+	if port == defaultPorts[u.Scheme] {
+		port = ""
+	}
 
 	hostname, err := idna.ToASCII(u.Hostname())
 	if err != nil {
 		return nil, err
 	}
+	hostname = strings.ToLower(hostname)
 
-	u.Host = strings.ToLower(hostname)
-
-	if port == defaultPorts[u.Scheme] {
-		port = ""
-	}
+	u.Host = hostname
 	if port != "" {
 		u.Host += ":" + port
 	}
@@ -39,7 +46,6 @@ func NormalizeURL(u *url.URL) (*url.URL, error) {
 	if path == "" {
 		path = u.Path
 	}
-
 	if path == "" {
 		path = "/"
 	}
@@ -49,16 +55,14 @@ func NormalizeURL(u *url.URL) (*url.URL, error) {
 		return nil, err
 	}
 
-	hadSlash := path[len(path)-1] == '/'
-	u.RawPath = pathPkg.Clean(path)
-	if hadSlash && u.RawPath[len(u.RawPath)-1] != '/' {
-		u.RawPath += "/"
-	}
+	path = removeDotSegments(path)
 
-	u.Path, err = url.PathUnescape(u.RawPath)
+	u.Path, err = url.PathUnescape(path)
 	if err != nil {
 		return nil, err
 	}
+
+	u.RawPath = ""
 
 	u.RawQuery, err = normalizeComponent(u.RawQuery, "&;=", url.QueryEscape)
 	if err != nil {
@@ -66,6 +70,37 @@ func NormalizeURL(u *url.URL) (*url.URL, error) {
 	}
 
 	return u, nil
+}
+
+// https://datatracker.ietf.org/doc/html/rfc3986#section-5.2.4
+func removeDotSegments(in string) string {
+	segs := strings.Split(in, "/")
+	result := make([]string, 0, len(segs))
+
+	isAbsolute := false
+	if segs[0] == "" {
+		isAbsolute = true
+		segs = segs[1:]
+	}
+
+	for _, seg := range segs {
+		switch seg {
+		case ".":
+			// nop
+		case "..":
+			if len(result) > 0 {
+				result = result[:len(result)-1]
+			}
+		default:
+			result = append(result, seg)
+		}
+	}
+
+	resultPath := strings.Join(result, "/")
+	if isAbsolute {
+		resultPath = "/" + resultPath
+	}
+	return resultPath
 }
 
 func normalizeComponent(component string, special string, escape func(string) string) (string, error) {
