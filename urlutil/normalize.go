@@ -50,7 +50,7 @@ func NormalizeURL(u *url.URL) (*url.URL, error) {
 		path = "/"
 	}
 
-	path, err = normalizeComponent(path, "/", url.PathEscape)
+	path, err = normalizeComponent(path, "/", escapeModePath)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func NormalizeURL(u *url.URL) (*url.URL, error) {
 
 	u.RawPath = ""
 
-	u.RawQuery, err = normalizeComponent(u.RawQuery, "&;=", url.QueryEscape)
+	u.RawQuery, err = normalizeComponent(u.RawQuery, "&;=", escapeModeQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -83,13 +83,19 @@ func removeDotSegments(in string) string {
 		segs = segs[1:]
 	}
 
-	for _, seg := range segs {
+	for i, seg := range segs {
 		switch seg {
 		case ".":
 			// nop
+			if i == len(segs)-1 {
+				result = append(result, "")
+			}
 		case "..":
 			if len(result) > 0 {
 				result = result[:len(result)-1]
+			}
+			if i == len(segs)-1 {
+				result = append(result, "")
 			}
 		default:
 			result = append(result, seg)
@@ -103,8 +109,33 @@ func removeDotSegments(in string) string {
 	return resultPath
 }
 
-func normalizeComponent(component string, special string, escape func(string) string) (string, error) {
+type escapeMode int
+
+const (
+	escapeModeQuery escapeMode = iota
+	escapeModePath
+)
+
+func normalizeComponent(component string, special string, mode escapeMode) (string, error) {
 	escaped := ""
+
+	type escapeFuncs struct {
+		escape   func(string) string
+		unescape func(string) (string, error)
+	}
+
+	var e escapeFuncs
+	if mode == escapeModeQuery {
+		e = escapeFuncs{
+			escape:   url.QueryEscape,
+			unescape: url.QueryUnescape,
+		}
+	} else if mode == escapeModePath {
+		e = escapeFuncs{
+			escape:   url.PathEscape,
+			unescape: url.PathUnescape,
+		}
+	}
 
 	for component != "" {
 		var part, sep string
@@ -114,12 +145,12 @@ func normalizeComponent(component string, special string, escape func(string) st
 			part, sep, component = component, "", ""
 		}
 
-		unescaped, err := url.PathUnescape(part)
+		unescaped, err := e.unescape(part)
 		if err != nil {
 			return "", err
 		}
 
-		escaped += escape(unescaped) + sep
+		escaped += e.escape(unescaped) + sep
 	}
 
 	return escaped, nil

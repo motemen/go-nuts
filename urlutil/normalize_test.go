@@ -39,8 +39,8 @@ func TestNormalizeURL(t *testing.T) {
 		},
 		{
 			name: "Encode/decode characters",
-			in:   "https://localhost/%7e%41%5E/🤗?q=%7E%41%5E🤗",
-			want: "https://localhost/~A%5E/%F0%9F%A4%97?q=~A%5E%F0%9F%A4%97",
+			in:   "https://localhost/%7e%41%5E/🤗?q=%7E%41%5E🤗/",
+			want: "https://localhost/~A%5E/%F0%9F%A4%97?q=~A%5E%F0%9F%A4%97%2F",
 		},
 		{
 			name: "Encode/decode characters",
@@ -54,8 +54,8 @@ func TestNormalizeURL(t *testing.T) {
 		},
 		{
 			name: "Space in path/query",
-			in:   "https://localhost/foo bar?q=foo bar",
-			want: "https://localhost/foo%20bar?q=foo+bar",
+			in:   "https://localhost/foo bar?q=foo bar+baz",
+			want: "https://localhost/foo%20bar?q=foo+bar+baz",
 		},
 		{
 			name: "Empty path",
@@ -122,7 +122,7 @@ func Test_removeDotSegments(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := removeDotSegments(tt.in); got != tt.want {
-				t.Errorf("removeDotSegments() = %v, want %v", got, tt.want)
+				t.Errorf("removeDotSegments(%q) = %v, want %v", tt.in, got, tt.want)
 			}
 		})
 	}
