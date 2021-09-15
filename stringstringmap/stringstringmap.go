@@ -198,15 +198,20 @@ func (e Encoder) encodeToStringStringMap(rv reflect.Value, m map[string]string) 
 		}
 
 		tag := field.Tag.Get("stringstringmap")
-		if tag == "-" || strings.HasPrefix(tag, "-,") {
+		name, opts := parseFieldTag(tag)
+
+		if name == "-" {
 			continue
 		}
-		if (e.Omitempty || strings.Contains(tag, ",omitempty")) && fv.IsZero() {
+		if name == "" {
+			name = field.Name
+		}
+		if (e.Omitempty || opts == "omitempty") && fv.IsZero() {
 			continue
 		}
 
 		var err error
-		m[field.Name], err = e.encodeToText(fv.Interface(), field)
+		m[name], err = e.encodeToText(fv.Interface(), field)
 		if err != nil {
 			return nil, fmt.Errorf("encoding field %s: %w", field.Name, err)
 		}
@@ -233,14 +238,18 @@ func (d Decoder) decodeFromStringStringMap(rv reflect.Value, m map[string]string
 		}
 
 		tag := field.Tag.Get("stringstringmap")
-		if tag == "-" || strings.HasPrefix(tag, "-,") {
+		name, opts := parseFieldTag(tag)
+		if name == "-" {
 			continue
 		}
-		if (d.Omitempty || strings.Contains(tag, ",omitempty")) && m[field.Name] == "" {
+		if name == "" {
+			name = field.Name
+		}
+		if (d.Omitempty || opts == "omitempty") && m[name] == "" {
 			continue
 		}
 
-		err := d.decodeFromText(m[field.Name], fv.Addr().Interface(), field)
+		err := d.decodeFromText(m[name], fv.Addr().Interface(), field)
 		if err != nil {
 			return fmt.Errorf("decoding field %v: %w", field.Name, err)
 		}
@@ -271,4 +280,14 @@ func Marshal(v interface{}) (map[string]string, error) {
 
 func Unmarshal(m map[string]string, v interface{}) error {
 	return Decoder{}.Decode(m, v)
+}
+
+func parseFieldTag(tag string) (name string, opts string) {
+	if i := strings.Index(tag, ","); i != -1 {
+		name = tag[:i]
+		opts = tag[i+1:]
+	} else {
+		name = tag
+	}
+	return
 }

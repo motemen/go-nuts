@@ -39,8 +39,9 @@ type s struct {
 	Omitempty int `stringstringmap:",omitempty"`
 	Base64    base64EncodedString
 	Embedded
-	Enum enum
-	Skip string `stringstringmap:"-"`
+	Enum  enum
+	Skip  string `stringstringmap:"-"`
+	Named string `stringstringmap:"customname"`
 	//lint:ignore U1000 testing purpose
 	unexported int
 }
@@ -79,20 +80,22 @@ func TestEncodeDecode(t *testing.T) {
 				Embedded: Embedded{
 					String2: "bar",
 				},
-				Enum: e1,
-				Skip: "skipthis",
+				Enum:  e1,
+				Skip:  "skipthis",
+				Named: "named",
 			},
 			unmarshaled: &s{},
 			marshaled: map[string]string{
-				"Int":     "-99",
-				"Uint":    "100",
-				"Float":   "3.14",
-				"String":  "foo",
-				"Time":    "12345",
-				"Bool":    "true",
-				"Base64":  "aGVsbG8=",
-				"String2": "bar",
-				"Enum":    "1",
+				"Int":        "-99",
+				"Uint":       "100",
+				"Float":      "3.14",
+				"String":     "foo",
+				"Time":       "12345",
+				"Bool":       "true",
+				"Base64":     "aGVsbG8=",
+				"String2":    "bar",
+				"Enum":       "1",
+				"customname": "named",
 			},
 		},
 		{
@@ -162,7 +165,7 @@ func TestEncodeDecode(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(test.marshaled, m); diff != "" {
-				t.Fatalf("got diff:\n%s", diff)
+				t.Fatalf("comparing marshaled got diff:\n%s", diff)
 			}
 
 			unmarshalled := test.unmarshaled
@@ -181,7 +184,7 @@ func TestEncodeDecode(t *testing.T) {
 				cmp.FilterPath(func(p cmp.Path) bool { return p.String() == "Skip" }, cmp.Ignore()),
 				cmpopts.IgnoreUnexported(value),
 			); diff != "" {
-				t.Fatalf("got diff:\n%s", diff)
+				t.Fatalf("comparing unmarshaled got diff:\n%s", diff)
 			}
 		})
 	}
