@@ -60,12 +60,15 @@ type Embedded struct {
 
 func TestEncodeDecode(t *testing.T) {
 	tests := []struct {
-		v     interface{}
-		m     map[string]string
-		error string
+		name        string
+		value       interface{}
+		marshaled   map[string]string
+		unmarshaled interface{}
+		error       string
 	}{
 		{
-			v: s{
+			name: "complicated struct",
+			value: s{
 				Int:    -99,
 				Uint:   100,
 				Float:  3.14,
@@ -79,7 +82,8 @@ func TestEncodeDecode(t *testing.T) {
 				Enum: e1,
 				Skip: "skipthis",
 			},
-			m: map[string]string{
+			unmarshaled: &s{},
+			marshaled: map[string]string{
 				"Int":     "-99",
 				"Uint":    "100",
 				"Float":   "3.14",
@@ -92,12 +96,25 @@ func TestEncodeDecode(t *testing.T) {
 			},
 		},
 		{
-			v: struct {
+			name: "unsupported type",
+			value: struct {
 				C chan struct{}
 			}{
 				make(chan struct{}),
 			},
 			error: "encoding field C: unsupported type chan struct {}",
+		},
+		{
+			name: "marshalling pointer",
+			value: &struct {
+				S string
+			}{
+				S: "a",
+			},
+			unmarshaled: &struct{ S string }{},
+			marshaled: map[string]string{
+				"S": "a",
+			},
 		},
 	}
 
@@ -128,39 +145,50 @@ func TestEncodeDecode(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		if test.error != "" {
-			_, err := e.Encode(test.v)
-			if err == nil {
-				t.Error("should err")
-			} else if test.error != err.Error() {
-				t.Errorf("expected error %s but got %s", test.error, err.Error())
+		t.Run(test.name, func(t *testing.T) {
+			if test.error != "" {
+				_, err := e.Encode(test.value)
+				if err == nil {
+					t.Error("should err")
+				} else if test.error != err.Error() {
+					t.Errorf("expected error %s but got %s", test.error, err.Error())
+				}
+				return
 			}
-			continue
-		}
 
-		m, err := e.Encode(test.v)
-		if err != nil {
-			t.Fatal(err)
-		}
+			m, err := e.Encode(test.value)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		if diff := cmp.Diff(test.m, m); diff != "" {
-			t.Fatalf("got diff:\n%s", diff)
-		}
+			if diff := cmp.Diff(test.marshaled, m); diff != "" {
+				t.Fatalf("got diff:\n%s", diff)
+			}
 
-		v2 := reflect.New(reflect.TypeOf(test.v)).Elem().Interface().(s)
-		err = d.Decode(m, &v2)
-		if err != nil {
-			t.Fatal(err)
-		}
+			unmarshalled := test.unmarshaled
+			err = d.Decode(m, unmarshalled)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		if diff := cmp.Diff(
-			test.v, v2,
-			cmp.FilterPath(func(p cmp.Path) bool { return p.String() == "Skip" }, cmp.Ignore()),
-			cmpopts.IgnoreUnexported(s{}),
-		); diff != "" {
-			t.Fatalf("got diff:\n%s", diff)
-		}
+			value := test.value
+			if reflect.ValueOf(value).Kind() == reflect.Ptr {
+				value = indirect(value)
+			}
+			if diff := cmp.Diff(
+				value,
+				indirect(unmarshalled),
+				cmp.FilterPath(func(p cmp.Path) bool { return p.String() == "Skip" }, cmp.Ignore()),
+				cmpopts.IgnoreUnexported(value),
+			); diff != "" {
+				t.Fatalf("got diff:\n%s", diff)
+			}
+		})
 	}
+}
+
+func indirect(v interface{}) interface{} {
+	return reflect.Indirect(reflect.ValueOf(v)).Interface()
 }
 
 func TestEncodeDecode_Omitempty(t *testing.T) {

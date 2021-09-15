@@ -159,6 +159,11 @@ func (e Encoder) Encode(v interface{}) (map[string]string, error) {
 func (e Encoder) encodeToStringStringMap(rv reflect.Value, m map[string]string) (map[string]string, error) {
 	rt := rv.Type()
 
+	if rt.Kind() == reflect.Ptr {
+		rt = rt.Elem()
+		rv = rv.Elem()
+	}
+
 	embeddedIdx := []int{}
 	for i, n := 0, rt.NumField(); i < n; i++ {
 		if rt.Field(i).PkgPath != "" {
@@ -246,11 +251,17 @@ func (d Decoder) decodeFromStringStringMap(rv reflect.Value, m map[string]string
 
 func (d Decoder) Decode(m map[string]string, v interface{}) error {
 	pv := reflect.ValueOf(v)
+	if pv.Elem().Kind() == reflect.Ptr {
+		pv.Elem().Set(reflect.New(pv.Elem().Type()))
+		pv = pv.Elem()
+	}
+
 	// make a copy as decodeFromStringStringMap destroys it
 	m2 := make(map[string]string, len(m))
 	for k, v := range m {
 		m2[k] = v
 	}
+
 	return d.decodeFromStringStringMap(pv.Elem(), m2)
 }
 
