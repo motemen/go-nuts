@@ -15,11 +15,10 @@ import (
 )
 
 // Config encapsulates typical OAuth2 authorization flow:
-// 1. Try to restore previously-saved token,
-// 2. If not available, start a local server for receiving code
-//    and prompt its URL,
-// 3. Obtain an access token when code is received,
-// 4. Store the token for later use.
+//   1. Try to restore previously-saved token,
+//   2. If not available, start a local server for receiving code and prompt its URL,
+//   3. Obtain an access token when code is received,
+//   4. Store the token for later use.
 type Config struct {
 	// Required
 	OAuth2Config *oauth2.Config
