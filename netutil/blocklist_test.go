@@ -40,13 +40,19 @@ func TestPrivateNetworkBlocklist(t *testing.T) {
 		{"[::2]", false},
 		{"[2001:2::1]", true},
 		{"[2001:4860:4802:32::a]", false},
-		{"[::ffff:192.168.0.1]", true},
+		// TODO: Uncomment when Go 1.26 is released or backport is available
+		// IPv4-mapped IPv6 addresses are rejected by net/url.Parse in Go 1.25.3 due to CVE-2025-47912 fix
+		// This is fixed in Go 1.26: https://github.com/golang/go/issues/75815
+		// {"[::ffff:192.168.0.1]", true},
 	}
 
 	for _, test := range tests {
 		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-		req, _ := http.NewRequestWithContext(ctx, "GET", "http://"+test.addr, nil)
-		_, err := client.Do(req)
+		req, err := http.NewRequestWithContext(ctx, "GET", "http://"+test.addr, nil)
+		if err != nil {
+			t.Fatalf("failed to create request for %s: %v", test.addr, err)
+		}
+		_, err = client.Do(req)
 		var berr ErrBlocked
 		if test.shouldBlock {
 			assert.ErrorAs(t, err, &ErrBlocked{})
