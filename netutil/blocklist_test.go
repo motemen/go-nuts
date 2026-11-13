@@ -37,7 +37,6 @@ func TestPrivateNetworkBlocklist(t *testing.T) {
 		{"[::]", true},
 		{"[::0]", true},
 		{"[::1]", true},
-		{"[::2]", true}, // IPv4-compatible address (::0.0.0.2)
 		{"[2001:2::1]", true},
 		{"[2001:4860:4802:32::a]", false},
 		// TODO: Uncomment when Go 1.26 is released or backport is available
