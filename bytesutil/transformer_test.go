@@ -5,7 +5,7 @@ import "testing"
 import (
 	"bytes"
 	"golang.org/x/text/transform"
-	"io/ioutil"
+	"io"
 )
 
 func TestRemove(t *testing.T) {
@@ -71,7 +71,7 @@ func TestRemove(t *testing.T) {
 		buf := bytes.NewBufferString(test.in)
 		remover := Remove(In(test.remove))
 		r := transform.NewReader(buf, remover)
-		b, err := ioutil.ReadAll(r)
+		b, err := io.ReadAll(r)
 		if err != nil {
 			t.Error(err)
 			continue

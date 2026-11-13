@@ -37,7 +37,6 @@ func TestPrivateNetworkBlocklist(t *testing.T) {
 		{"[::]", true},
 		{"[::0]", true},
 		{"[::1]", true},
-		{"[::2]", false},
 		{"[2001:2::1]", true},
 		{"[2001:4860:4802:32::a]", false},
 		// TODO: Uncomment when Go 1.26 is released or backport is available
@@ -62,6 +61,61 @@ func TestPrivateNetworkBlocklist(t *testing.T) {
 			}
 		}
 		cancel()
+	}
+}
+
+func TestPrivateNetworkBlocklist_Addresses(t *testing.T) {
+	tests := []struct {
+		addr        string
+		shouldBlock bool
+	}{
+		{"127.0.0.1:80", true},
+		{"224.0.0.1:80", true},
+		{"239.255.255.250:80", true},
+		{"[::ffff:127.0.0.1]:80", true},
+		{"[::ffff:10.0.0.1]:80", true},
+		{"[::7f00:1]:80", true},
+		{"[64:ff9b::7f00:1]:80", true},
+		{"[64:ff9b::a9fe:a9fe]:80", true},
+		{"[ff02::1]:80", true},
+		{"[fe80::1]:80", true},
+		{"[fd00::1]:80", true},
+		{"[::a00:1]:80", true},
+		{"93.184.216.34:80", false},
+		{"[64:ff9b::5db8:d822]:80", false}, // NAT64 for 93.184.216.34
+		{"[2606:2800:220:1::1]:80", false},
+		{"[2001:4860:4802:32::a]:80", false},
+	}
+	for _, test := range tests {
+		err := PrivateNetworkBlocklist.Control("tcp", test.addr, nil)
+		var berr ErrBlocked
+		if blocked := errors.As(err, &berr); blocked != test.shouldBlock {
+			t.Errorf("%s: blocked = %v (err = %v), want %v", test.addr, blocked, err, test.shouldBlock)
+		}
+	}
+}
+
+func TestNetworkBlocklist_EmbeddedIPv4(t *testing.T) {
+	blocklist := NetworkBlocklist{
+		V4: []NamedNetwork{{IPNet: MustParseCIDR("10.0.0.0/8"), Name: "internal"}},
+	}
+	tests := []struct {
+		addr        string
+		shouldBlock bool
+	}{
+		{"10.0.0.1:80", true},
+		{"[::a00:1]:80", true},
+		{"[64:ff9b::a00:1]:80", true},
+		{"[64:ff9b::b00:1]:80", false},
+		{"[::1]:80", false},
+		{"[2001:db8::a00:1]:80", false},
+	}
+	for _, test := range tests {
+		err := blocklist.Control("tcp", test.addr, nil)
+		var berr ErrBlocked
+		if blocked := errors.As(err, &berr); blocked != test.shouldBlock {
+			t.Errorf("%s: blocked = %v (err = %v), want %v", test.addr, blocked, err, test.shouldBlock)
+		}
 	}
 }
 

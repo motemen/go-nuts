@@ -28,28 +28,54 @@ func (l NetworkBlocklist) Control(network, address string, c syscall.RawConn) er
 		return fmt.Errorf("cannot parse host %q", host)
 	}
 
-	if addr.To4() != nil {
-		for _, n := range l.V4 {
-			if n.IPNet.Contains(addr) {
-				return ErrBlocked{
-					Host:    host,
-					Network: n,
-				}
-			}
+	if ip4 := addr.To4(); ip4 != nil {
+		if n, ok := lookup(l.V4, ip4); ok {
+			return ErrBlocked{Host: host, Network: n}
 		}
 	} else if addr.To16() != nil {
-		for _, n := range l.V6 {
-			if n.IPNet.Contains(addr) {
-				return ErrBlocked{
-					Host:    host,
-					Network: n,
-				}
+		if n, ok := lookup(l.V6, addr); ok {
+			return ErrBlocked{Host: host, Network: n}
+		}
+		// Addresses that embed an IPv4 address (NAT64, IPv4-compatible) may reach that
+		// IPv4 address, so check the embedded address against the IPv4 list too.
+		if ip4 := embeddedIPv4(addr); ip4 != nil {
+			if n, ok := lookup(l.V4, ip4); ok {
+				return ErrBlocked{Host: host, Network: n}
 			}
 		}
 	} else {
 		return fmt.Errorf("BUG: unreachable")
 	}
 
+	return nil
+}
+
+func lookup(networks []NamedNetwork, ip net.IP) (NamedNetwork, bool) {
+	for _, n := range networks {
+		if n.IPNet.Contains(ip) {
+			return n, true
+		}
+	}
+	return NamedNetwork{}, false
+}
+
+var (
+	// NAT64 well-known prefix (RFC 6052). Where NAT64 is available, 64:ff9b::7f00:1 may reach 127.0.0.1.
+	nat64WellKnownPrefix = MustParseCIDR("64:ff9b::/96")
+	// Deprecated IPv4-compatible addresses (RFC 4291). net.IP.To4 does not treat them as IPv4.
+	ipv4CompatiblePrefix = MustParseCIDR("::/96")
+)
+
+// embeddedIPv4 returns the IPv4 address embedded in a NAT64 well-known prefix address
+// or an IPv4-compatible address, or nil if ip is neither.
+func embeddedIPv4(ip net.IP) net.IP {
+	ip = ip.To16()
+	if ip == nil {
+		return nil
+	}
+	if nat64WellKnownPrefix.Contains(ip) || ipv4CompatiblePrefix.Contains(ip) {
+		return net.IPv4(ip[12], ip[13], ip[14], ip[15]).To4()
+	}
 	return nil
 }
 
@@ -127,6 +153,7 @@ var privateNetworksV4 = []unparsedNamedNetwork{
 	{"192.0.0.170/32", "NAT64/DNS64 Discovery"},
 	{"192.0.0.171/32", "NAT64/DNS64 Discovery"},
 	{"192.0.0.8/32", "IPv4 dummy address"},
+	{"224.0.0.0/4", "Multicast"},
 }
 
 // https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml
@@ -144,4 +171,5 @@ var privateNetworksV6 = []unparsedNamedNetwork{
 	{"2001:2::/48", "Benchmarking"},
 	{"100::/64", "Discard-Only Address Block"},
 	{"64:ff9b:1::/48", "IPv4-IPv6 Translat."},
+	{"ff00::/8", "Multicast"},
 }

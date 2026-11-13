@@ -1,7 +1,7 @@
 package httputil
 
 import (
-	"io/ioutil"
+	"io"
 	"mime"
 	"net/http"
 	"net/http/httptest"
@@ -27,7 +27,7 @@ func TestCharsetTransport(t *testing.T) {
 	}
 
 	defer resp.Body.Close()
-	b, err := ioutil.ReadAll(resp.Body)
+	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestChardetTransport(t *testing.T) {
 	}
 
 	defer resp.Body.Close()
-	b, err := ioutil.ReadAll(resp.Body)
+	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
