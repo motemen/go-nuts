@@ -37,7 +37,7 @@ func TestPrivateNetworkBlocklist(t *testing.T) {
 		{"[::]", true},
 		{"[::0]", true},
 		{"[::1]", true},
-		{"[::2]", false},
+		{"[::2]", true}, // IPv4-compatible address (::0.0.0.2)
 		{"[2001:2::1]", true},
 		{"[2001:4860:4802:32::a]", false},
 		// TODO: Uncomment when Go 1.26 is released or backport is available
@@ -62,6 +62,35 @@ func TestPrivateNetworkBlocklist(t *testing.T) {
 			}
 		}
 		cancel()
+	}
+}
+
+func TestPrivateNetworkBlocklist_Addresses(t *testing.T) {
+	tests := []struct {
+		addr        string
+		shouldBlock bool
+	}{
+		{"127.0.0.1:80", true},
+		{"224.0.0.1:80", true},
+		{"239.255.255.250:80", true},
+		{"[::ffff:127.0.0.1]:80", true},
+		{"[::ffff:10.0.0.1]:80", true},
+		{"[::7f00:1]:80", true},
+		{"[64:ff9b::7f00:1]:80", true},
+		{"[64:ff9b::a9fe:a9fe]:80", true},
+		{"[ff02::1]:80", true},
+		{"[fe80::1]:80", true},
+		{"[fd00::1]:80", true},
+		{"93.184.216.34:80", false},
+		{"[2606:2800:220:1::1]:80", false},
+		{"[2001:4860:4802:32::a]:80", false},
+	}
+	for _, test := range tests {
+		err := PrivateNetworkBlocklist.Control("tcp", test.addr, nil)
+		var berr ErrBlocked
+		if blocked := errors.As(err, &berr); blocked != test.shouldBlock {
+			t.Errorf("%s: blocked = %v (err = %v), want %v", test.addr, blocked, err, test.shouldBlock)
+		}
 	}
 }
 

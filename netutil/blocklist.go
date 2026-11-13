@@ -127,6 +127,7 @@ var privateNetworksV4 = []unparsedNamedNetwork{
 	{"192.0.0.170/32", "NAT64/DNS64 Discovery"},
 	{"192.0.0.171/32", "NAT64/DNS64 Discovery"},
 	{"192.0.0.8/32", "IPv4 dummy address"},
+	{"224.0.0.0/4", "Multicast"},
 }
 
 // https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml
@@ -144,4 +145,10 @@ var privateNetworksV6 = []unparsedNamedNetwork{
 	{"2001:2::/48", "Benchmarking"},
 	{"100::/64", "Discard-Only Address Block"},
 	{"64:ff9b:1::/48", "IPv4-IPv6 Translat."},
+	// NAT64 well-known prefix (RFC 6052). Where NAT64 is available, 64:ff9b::7f00:1 may reach 127.0.0.1.
+	{"64:ff9b::/96", "IPv4-IPv6 Translat."},
+	// Deprecated IPv4-compatible addresses (RFC 4291). net.IP.To4 does not treat them as IPv4,
+	// so ::7f00:1 (::127.0.0.1) would otherwise pass. Also covers :: and ::1.
+	{"::/96", "IPv4-compatible Address (deprecated)"},
+	{"ff00::/8", "Multicast"},
 }
